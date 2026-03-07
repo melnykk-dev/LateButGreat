@@ -24,11 +24,11 @@
 
 | Feature | Visual Impact | Tech Stack |
 | :--- | :---: | :--- |
-| **Aurora Ambience** | 🟢🟢🟢🟢🟢 | CSS3 Orbs & Glassmorphism |
-| **Vibe Switching** | 🟢🟢🟢🟢🟢 | Dynamic HSL Theming |
-| **Realtime AI** | 🟢🟢🟢🟢⚪ | Direct Pollination API |
-| **PDF Rendering** | 🟢🟢🟢🟢🟢 | jsPDF + html2canvas |
-| **Auto-Charts** | 🟢🟢🟢🟢🟢 | Reactive Chart.js |
+| **Manual Uploads** | 🟢🟢🟢🟢🟢 | Drag & Drop / File Picker |
+| **Resilient AI**  | 🟢🟢🟢🟢🟢 | Retry Loops + Exponential Backoff |
+| **Lazy Loading**   | 🟢🟢🟢🟢🟢 | Pulse Placeholders & Fade-in |
+| **PDF Rendering** | 🟢🟢🟢🟢🟢 | Robust Slide Cloning |
+| **Auto-Charts**   | 🟢🟢🟢🟢🟢 | Reactive Chart.js |
 
 ---
 
@@ -99,5 +99,5 @@ open index.html # That's it. No server. No Node. No Stress.
   <br>
   Built by <b>Artem Melnyk
   <br>
-  MIT Licensed · Synthetic Presentation Engine v3.0
+  MIT Licensed · Synthetic Presentation Engine v4.5
 </p>

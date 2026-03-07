@@ -1611,6 +1611,52 @@ select:focus {
     height: 100%;
     object-fit: cover;
     border-radius: 16px;
+    transition: opacity 0.5s ease;
+}
+
+.loading img {
+    opacity: 0;
+}
+
+.img-placeholder {
+    display: none;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--slide-accent-rgb), 0.05);
+    color: var(--slide-accent);
+    font-size: 1.2rem;
+    font-weight: 500;
+    font-style: italic;
+    border: 2px dashed rgba(var(--slide-accent-rgb), 0.2);
+    border-radius: 16px;
+    z-index: 1;
+}
+
+.loading .img-placeholder {
+    display: flex;
+    animation: placeholder-pulse 2s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        background: rgba(var(--slide-accent-rgb), 0.05);
+    }
+
+    50% {
+        opacity: 1;
+        background: rgba(var(--slide-accent-rgb), 0.1);
+    }
+}
+
+.img-col.drag-over,
+.top-img-wrap.drag-over {
+    border: 4px dashed var(--slide-accent) !important;
+    background: rgba(var(--slide-accent-rgb), 0.2) !important;
 }
 
 /* Top Image Layout */

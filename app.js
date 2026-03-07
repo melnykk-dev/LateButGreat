@@ -15,6 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const deckOptions = document.getElementById('deckOptions');
 
+    // Hidden file input for manual image uploads
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
     // ── State ───────────────────────────────────────────────────
     let selectedVibe = 'modern';
     let selectedScale = 7;
@@ -93,9 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getImageUrl(topic, subTopic, seed = 0) {
-        const prompt = subTopic ? `${subTopic} presentation slide for ${topic}` : `${topic} presentation slide`;
-        const clean = prompt.replace(/["']/g, '').trim();
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent(clean + ' highly detailed professional photography')}?width=1280&height=720&nologo=true&seed=${seed}`;
+        // Simplify prompt by removing special characters that might confuse the generator
+        const cleanSub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
+        const cleanTopic = (topic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const prompt = cleanSub ? `${cleanSub} for ${cleanTopic}` : cleanTopic;
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' professional presentation slide digital art')}?width=1280&height=720&nologo=true&seed=${seed}`;
     }
 
 
@@ -228,8 +238,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         title: (aiResult?.title && typeof aiResult.title === 'string') ? aiResult.title : subTopic,
                         bulletPoints,
                         imageUrl: imgUrl,
-                        layout: ['layout-split-left', 'layout-split-right', 'layout-full-image', 'layout-top-image'][Math.floor(Math.random() * 4)]
+                        layout: ['layout-split-left', 'layout-split-right', 'layout-top-image', 'layout-full-image'][Math.floor(Math.random() * 4)]
                     });
+
+                    // Render incrementally so user can see/edit early slides
+                    renderDeck();
+                    previewSection.classList.remove('hidden');
                 } catch (e) {
                     console.warn(`Slide ${i + 1} failed:`, e);
                     // Use fallback for this slide
@@ -241,8 +255,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             `Focus on ${subTopic} continues to drive progress.`
                         ],
                         imageUrl: getImageUrl(topic, subTopic, i),
-                        layout: ['layout-split-left', 'layout-split-right', 'layout-full-image', 'layout-top-image'][Math.floor(Math.random() * 4)]
+                        layout: ['layout-split-left', 'layout-split-right', 'layout-top-image', 'layout-full-image'][Math.floor(Math.random() * 4)]
                     });
+                    renderDeck();
+                    previewSection.classList.remove('hidden');
                 }
             }
 
@@ -281,43 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Preload all images before showing the deck with explicit status
-            const imageUrls = deckState.slides.map(s => s.imageUrl).filter(Boolean);
-            if (imageUrls.length > 0) {
-                showLoading(`Preparing ${imageUrls.length} visual assets...`);
-
-                let loadedCount = 0;
-                await Promise.all(imageUrls.map(url => {
-                    return new Promise((resolve) => {
-                        const img = new Image();
-                        const timer = setTimeout(() => {
-                            console.warn(`Image load timeout: ${url}`);
-                            resolve();
-                        }, 12000); // 12s timeout per image
-
-                        img.onload = () => {
-                            clearTimeout(timer);
-                            loadedCount++;
-                            showLoading(`Downloading assets (${loadedCount}/${imageUrls.length})...`);
-                            resolve();
-                        };
-                        img.onerror = () => {
-                            clearTimeout(timer);
-                            console.warn(`Image failed to load: ${url}`);
-                            resolve();
-                        };
-                        img.src = url;
-                    });
-                }));
-            }
-
-            // Render the full deck NOW
+            // Render the full deck IMMEDIATELY (Images will lazy load)
             renderDeck();
             previewSection.classList.remove('hidden');
             previewSection.scrollIntoView({ behavior: 'smooth' });
             triggerCelebration();
-
-
 
         } catch (e) {
             alert('Generation failed: ' + e.message);
@@ -433,8 +417,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const bullets = (data.bulletPoints || []).map((b, bIdx) =>
                 `<li contenteditable="true" onblur="window.updateBullet(${idx},${bIdx},this.innerText)">${escHtml(b)}</li>`
             ).join('');
+
             const imgHtml = data.imageUrl
-                ? `<div class="top-img-wrap"><img src="${escHtml(data.imageUrl)}" alt="slide visual" loading="lazy" style="display:block;"></div>`
+                ? `<div class="top-img-wrap loading">
+                     <div class="img-placeholder">✦ Generating visual...</div>
+                     <img src="${escHtml(data.imageUrl)}" alt="slide visual" onload="this.parentElement.classList.remove('loading')" onerror="this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove()">
+                   </div>`
                 : '';
 
             slide.innerHTML = `
@@ -449,8 +437,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const bullets = (data.bulletPoints || []).map((b, bIdx) =>
                 `<li contenteditable="true" onblur="window.updateBullet(${idx},${bIdx},this.innerText)">${escHtml(b)}</li>`
             ).join('');
+
             const imgHtml = data.imageUrl
-                ? `<div class="img-col"><img src="${escHtml(data.imageUrl)}" alt="slide visual" loading="lazy" style="display:block;"></div>`
+                ? `<div class="img-col loading">
+                     <div class="img-placeholder">✦ Generating visual...</div>
+                     <img src="${escHtml(data.imageUrl)}" alt="slide visual" onload="this.parentElement.classList.remove('loading')" onerror="this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove()">
+                   </div>`
                 : '';
 
             slide.innerHTML = `
@@ -500,10 +492,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.regenImage(idx, imgBtn);
             });
 
+            const uploadBtn = document.createElement('button');
+            uploadBtn.className = 'magic-btn';
+            uploadBtn.title = 'Upload Own Image';
+            uploadBtn.textContent = '↑ Upload';
+            uploadBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.triggerUpload(idx);
+            });
+
             magicBar.appendChild(layoutBtn);
             magicBar.appendChild(textBtn);
             magicBar.appendChild(imgBtn);
+            magicBar.appendChild(uploadBtn);
             wrapper.appendChild(magicBar);
+
+            // Add Drag & Drop listeners to image containers
+            const imgContainer = slide.querySelector('.img-col, .top-img-wrap');
+            if (imgContainer) {
+                imgContainer.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    imgContainer.classList.add('drag-over');
+                });
+                imgContainer.addEventListener('dragleave', () => imgContainer.classList.remove('drag-over'));
+                imgContainer.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    imgContainer.classList.remove('drag-over');
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        handleImageUpload(idx, file);
+                    }
+                });
+            }
         }
 
         container.appendChild(wrapper);
@@ -637,11 +658,32 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const seed = Date.now() % 100000;
             slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed);
+            delete slide.customImage; // Clear manual upload flag if user explicitly regens
             renderDeck();
             window.scrollTo(0, currentScroll); // Restore scroll position
         } catch (e) { console.error(e); }
         finally { btn.classList.remove('is-loading'); btn.innerHTML = '⟳ Regen Image'; }
     };
+
+    window.triggerUpload = (idx) => {
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) handleImageUpload(idx, file);
+        };
+        fileInput.click();
+    };
+
+    function handleImageUpload(idx, file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (deckState.slides[idx]) {
+                deckState.slides[idx].imageUrl = e.target.result;
+                deckState.slides[idx].customImage = true; // Mark as custom to prevent auto-overwrites
+                renderDeck();
+            }
+        };
+        reader.readAsDataURL(file);
+    }
 
     // ── EXPORT / PDF ────────────────────────────────────────────
     document.getElementById('exportBtn')?.addEventListener('click', async (e) => {
@@ -651,9 +693,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
 
         try {
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1920, 1080] });
             const slides = document.querySelectorAll('.slide-wrapper .slide');
+            const { jsPDF } = window.jspdf;
 
             // Dedicated container for invisible rendering
             const renderContainer = document.createElement('div');
