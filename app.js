@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getImageUrl(topic, subTopic, seed = 0) {
         const prompt = subTopic ? `${subTopic} presentation slide for ${topic}` : `${topic} presentation slide`;
         const clean = prompt.replace(/["']/g, '').trim();
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent(clean + ' highly detailed professional photography')}?width=1280&height=720&nologo=true&seed=${seed}`;
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(clean + ' highly detailed professional photography')}?width=1280&height=720&nologo=true&seed=${seed}&model=flux&enhance=true`;
     }
 
 
@@ -202,8 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Chart slide
             showLoading('Generating data visualization...');
             try {
-                const systemMsg = `JSON analyst. Return ONLY valid JSON with numeric values: {"title": "string", "type": "bar", "labels": ["Label1","Label2","Label3","Label4","Label5"], "values": [number, number, number, number, number]}`;
-                const data = await fetchPollinationsJSON(`Generate 5 factual, quantitative data points about "${topic}" with accurate numeric values. Each label must be a short category name.`, systemMsg);
+                const systemMsg = `JSON analyst. Return ONLY valid JSON with coherent, related numeric values: {"title": "string", "type": "bar", "labels": ["Label1","Label2","Label3","Label4","Label5"], "values": [number, number, number, number, number]}. The labels and values MUST be related to the same metric or category.`;
+                const data = await fetchPollinationsJSON(`Generate 5 factual, quantitative data points about "${topic}" that are RELATED TO EACH OTHER and represent a consistent metric (like growth, market share, percentage, or quantity). Each label must be a short category name like years, regions, or products.`, systemMsg);
 
                 const chartData = {
                     title: (typeof data.title === 'string' ? data.title : `${topic} Data`).substring(0, 80),
@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `<li contenteditable="true" onblur="window.updateBullet(${idx},${bIdx},this.innerText)">${escHtml(b)}</li>`
             ).join('');
             const imgHtml = data.imageUrl
-                ? `<div class="top-img-wrap"><img src="${escHtml(data.imageUrl)}" alt="slide visual" loading="lazy" onerror="this.style.display='none'"></div>`
+                ? `<div class="top-img-wrap"><img src="${escHtml(data.imageUrl)}" alt="slide visual" loading="lazy" style="display:block;"></div>`
                 : '';
 
             slide.innerHTML = `
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `<li contenteditable="true" onblur="window.updateBullet(${idx},${bIdx},this.innerText)">${escHtml(b)}</li>`
             ).join('');
             const imgHtml = data.imageUrl
-                ? `<div class="img-col"><img src="${escHtml(data.imageUrl)}" alt="slide visual" loading="lazy" onerror="this.style.display='none'"></div>`
+                ? `<div class="img-col"><img src="${escHtml(data.imageUrl)}" alt="slide visual" loading="lazy" style="display:block;"></div>`
                 : '';
 
             slide.innerHTML = `
@@ -397,15 +397,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         wrapper.appendChild(slide);
 
-        // Magic Bar (only for content slides)
+        // Magic Bar (only for content slides) - FIXED: prevent scroll on click
         if (typeof idx === 'number') {
             const magicBar = document.createElement('div');
             magicBar.className = 'magic-bar';
-            magicBar.innerHTML = `
-                <button class="magic-btn" title="Cycle Layout" onclick="window.cycleLayout(${idx})">⊞ Layout</button>
-                <button class="magic-btn" title="Regenerate Text" onclick="window.regenText(${idx}, this)">✦ Regen Text</button>
-                <button class="magic-btn" title="Regenerate Image" onclick="window.regenImage(${idx}, this)">⟳ Regen Image</button>
-            `;
+            
+            // Create buttons with proper event handling
+            const layoutBtn = document.createElement('button');
+            layoutBtn.className = 'magic-btn';
+            layoutBtn.title = 'Cycle Layout';
+            layoutBtn.textContent = '⊞ Layout';
+            layoutBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.cycleLayout(idx);
+            });
+
+            const textBtn = document.createElement('button');
+            textBtn.className = 'magic-btn';
+            textBtn.title = 'Regenerate Text';
+            textBtn.textContent = '✦ Regen Text';
+            textBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.regenText(idx, textBtn);
+            });
+
+            const imgBtn = document.createElement('button');
+            imgBtn.className = 'magic-btn';
+            imgBtn.title = 'Regenerate Image';
+            imgBtn.textContent = '⟳ Regen Image';
+            imgBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.regenImage(idx, imgBtn);
+            });
+
+            magicBar.appendChild(layoutBtn);
+            magicBar.appendChild(textBtn);
+            magicBar.appendChild(imgBtn);
             wrapper.appendChild(magicBar);
         }
 
@@ -507,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.regenText = async (idx, btn) => {
+        const currentScroll = window.scrollY; // Save scroll position
         const slide = deckState.slides[idx];
         if (!slide || btn.classList.contains('is-loading')) return;
         btn.classList.add('is-loading');
@@ -519,16 +550,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 slide.bulletPoints = data.bulletPoints;
                 if (data.title) slide.title = data.title;
                 renderDeck();
+                window.scrollTo(0, currentScroll); // Restore scroll position
             }
         } catch (e) {
             console.error(e);
             slide.bulletPoints = [`Fresh insight on ${slide.title}.`, `Updated data for ${deckState.topic}.`, `Ongoing developments in this field.`];
             renderDeck();
+            window.scrollTo(0, currentScroll);
         }
         finally { btn.classList.remove('is-loading'); btn.innerHTML = '✦ Regen Text'; }
     };
 
     window.regenImage = async (idx, btn) => {
+        const currentScroll = window.scrollY; // Save scroll position
         const slide = deckState.slides[idx];
         if (!slide || btn.classList.contains('is-loading')) return;
         btn.classList.add('is-loading');
@@ -537,6 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const seed = Date.now() % 100000;
             slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed);
             renderDeck();
+            window.scrollTo(0, currentScroll); // Restore scroll position
         } catch (e) { console.error(e); }
         finally { btn.classList.remove('is-loading'); btn.innerHTML = '⟳ Regen Image'; }
     };
