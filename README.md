@@ -96,20 +96,10 @@ open index.html # That's it. No server. No Node. No Stress.
 > [!CAUTION]
 > Ensure you have an active internet connection! The AI engine talks directly to the Pollinations & Wikipedia API streams from your browser.
 
----
-
-## 🌐 Deploy to GitHub Pages (One Click)
-
-1. **Upload** all files to your repo.
-2. Go to **Settings > Pages**.
-3. Point to the **Main branch**.
-4. **BOOM.** Your AI Studio is live at `yourname.github.io/LateButGreat`.
-
----
 
 <p align="center">
   <br>
-  Built by <b>Artem Melnyk</b> · Designed with <b>Aurora Studio</b>
+  Built by <b>Artem Melnyk
   <br>
   MIT Licensed · Synthetic Presentation Engine v3.0
 </p>
