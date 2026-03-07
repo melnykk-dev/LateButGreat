@@ -115,7 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const vibePrompt = vibes[selectedVibe] || vibes.modern;
 
         const prompt = cleanSub ? `${cleanSub} for ${cleanTopic}` : cleanTopic;
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' ' + vibePrompt)}?width=1280&height=720&nologo=true&seed=${seed}`;
+        // Added complexity to seed to ensure diversity
+        const finalSeed = (seed * 12345) + Math.floor(Math.random() * 1000);
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' ' + vibePrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
     }
 
     function getFallbackImageUrl(topic, subTopic) {
@@ -438,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      <div class="img-placeholder">✦ Generating visual...</div>
                      <img src="${escHtml(data.imageUrl)}" alt="slide visual" 
                         onload="this.parentElement.classList.remove('loading')" 
-                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title)}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
+                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title).replace(/'/g, "\\'")}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
                    </div>`
                 : '';
 
@@ -460,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      <div class="img-placeholder">✦ Generating visual...</div>
                      <img src="${escHtml(data.imageUrl)}" alt="slide visual" 
                         onload="this.parentElement.classList.remove('loading')" 
-                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title)}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
+                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title).replace(/'/g, "\\'")}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
                    </div>`
                 : '';
 

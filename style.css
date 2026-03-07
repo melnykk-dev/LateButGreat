@@ -1604,6 +1604,8 @@ select:focus {
     overflow: hidden;
     border-radius: 16px;
     min-width: 0;
+    position: relative;
+    /* Added to contain absolute placeholder */
 }
 
 .img-col img {
@@ -1670,6 +1672,7 @@ select:focus {
     width: 100%;
     flex: 0 0 55%;
     position: relative;
+    /* Already has relative, but re-confirming presence */
     overflow: hidden;
 }
 
