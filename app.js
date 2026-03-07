@@ -32,20 +32,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 60000);
                 try {
-                    // Send as text/plain to avoid CORS preflight (OPTIONS)
-                    const res = await fetch('https://text.pollinations.ai/', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            messages,
-                            jsonMode: true,
-                            model,
-                            seed: 42 + attempt
-                        }),
-                        signal: controller.signal
-                    });
+                    // Streamlined GET to avoid both CORS preflight and 502 Bad Gateways
+                    const cleanPrompt = `${prompt} JSON Format: ${systemMsg}`;
+                    const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=${model}&json=true&seed=${42 + attempt}`;
+
+                    const res = await fetch(url, { method: 'GET', signal: controller.signal });
                     clearTimeout(timeout);
-                    if (!res.ok) continue;
+                    if (!res.ok) {
+                        // If 502, wait 1s before trying next
+                        await new Promise(r => setTimeout(r, 1000));
+                        continue;
+                    }
                     const text = await res.text();
                     const firstBrace = text.indexOf('{');
                     const lastBrace = text.lastIndexOf('}');
@@ -62,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        throw new Error("AI unavailable");
+        throw new Error("AI engine busy. Try again soon.");
     }
 
     function getImageUrl(topic, subTopic, seed = 0) {
