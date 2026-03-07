@@ -6,7 +6,6 @@
 <div align="center">
 
 ![GitHub License](https://img.shields.io/github/license/melnykk-dev/LateButGreat?style=for-the-badge&color=blueviolet)
-![GitHub Stars](https://img.shields.io/github/stars/melnykk-dev/LateButGreat?style=for-the-badge&color=ff69b4)
 ![Platform](https://img.shields.io/badge/Platform-Static_Web-6d5dfc?style=for-the-badge)
 ![AI-Powered](https://img.shields.io/badge/AI_Engine-Pollinations-00ffff?style=for-the-badge)
 ![No-Build](https://img.shields.io/badge/Build-Zero_Config-39ff14?style=for-the-badge)
