@@ -100,43 +100,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getImageUrl(topic, subTopic, seed = 0, aiPrompt = null) {
-        // If AI provided a specific prompt, use it
-        if (aiPrompt) {
-            const hash = (str) => {
-                let h = 0;
-                for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-                return Math.abs(h);
-            };
-            const uniqueKey = hash(topic + subTopic + selectedVibe);
-            const finalSeed = (seed * 1000) + (uniqueKey % 1000000) + Math.floor(Math.random() * 500);
-            return `https://image.pollinations.ai/prompt/${encodeURIComponent(aiPrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
-        }
-
-        // Simplify prompt by removing special characters that might confuse the generator
-        const cleanSub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
-        const cleanTopic = (topic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
-
-        // Add vibe context to prompt
+        // Vibe modifiers
         const vibes = {
-            modern: 'professional presentation slide digital art high resolution 4k sharp sleek',
-            cyberpunk: 'cyberpunk neon futuristic digital art synthwave glowing vibrant detailed',
-            classic: 'classic elegant oil painting masterpiece vintage fine art detailed',
-            botanic: 'botanic nature green plants photography high quality natural soft lighting',
-            minimalist: 'minimalist clean simple design professional high-end minimalist photography'
+            modern: 'professional corporate photography, sleek technology, clean lighting, 4k resolution',
+            cyberpunk: 'futuristic neon, synthwave aesthetic, high-tech glowing machinery, vibrant colors',
+            classic: 'elegant fine art, museum quality, professional lighting, sophisticated',
+            botanic: 'lush nature, greenhouse aesthetic, organic textures, soft natural light',
+            minimalist: 'minimalist product photography, vast negative space, premium clean look'
         };
         const vibePrompt = vibes[selectedVibe] || vibes.modern;
 
-        const prompt = cleanSub ? `"${cleanSub}" in the context of "${cleanTopic}"` : cleanTopic;
-        // Use a more complex seed generation to ensure variety
+        // Force the main topic and vibe to be included to prevent hallucinations
+        let finalPrompt = '';
+        if (aiPrompt) {
+            // Even if AI provides a prompt, mix in the main topic and vibe for safety
+            finalPrompt = `${aiPrompt}, ${topic}, ${vibePrompt}`;
+        } else {
+            const cleanSub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
+            finalPrompt = `${cleanSub} ${topic}, ${vibePrompt}`;
+        }
+
+        // Robust seed generation for maximum variety
         const hash = (str) => {
             let h = 0;
             for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
             return Math.abs(h);
         };
-        const uniqueKey = hash(topic + subTopic + selectedVibe);
-        const finalSeed = (seed * 1000) + (uniqueKey % 1000000) + Math.floor(Math.random() * 500);
+        const uniqueKey = hash(topic + subTopic + selectedVibe + seed);
+        const finalSeed = (seed * 777) + (uniqueKey % 1000000) + Math.floor(Math.random() * 9999);
 
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' ' + vibePrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
     }
 
     function getFallbackImageUrl(topic, subTopic) {
@@ -254,9 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."], "imagePrompt": "A highly descriptive prompt for an AI image generator that perfectly illustrates this sub-topic in the context of the main topic. Style: ${selectedVibe}."}`;
+                    const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."], "imagePrompt": "A highly descriptive visual description for an image generator (no people). Focus STRICTLY on ${topic}. Example: 'A sleek white Samsung phone on a marble table, professional lighting'."}`;
                     const aiResult = await fetchPollinationsJSON(
-                        `Write content and a specific image generator prompt for "${subTopic}" in the context of "${topic}".`,
+                        `Write content and a SAMSUNG/TOPIC SPECIFIC image generator prompt for "${subTopic}" in the context of "${topic}". DO NOT mention other countries or cultures.`,
                         systemMsg
                     );
 
@@ -736,28 +729,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const slide = deckState.slides[idx];
         if (!slide || btn.classList.contains('is-loading')) return;
         btn.classList.add('is-loading');
-        btn.textContent = '...';
+        btn.innerHTML = '✦ Thinking...';
         try {
             // Ask AI for a slightly different image prompt to ensure variety if we already have one
             let aiPrompt = slide.imagePrompt;
             if (aiPrompt) {
-                const systemMsg = `JSON generator. Return ONLY: {"imagePrompt": "A new, slightly varied but still highly relevant image prompt."}`;
-                const data = await fetchPollinationsJSON(`Generate a fresh variation of this image prompt: "${aiPrompt}". Keep it on topic for ${deckState.topic}.`, systemMsg);
+                const systemMsg = `JSON generator. Return ONLY: {"imagePrompt": "A new, slightly varied but still HIGHLY RELEVANT TO ${deckState.topic} image prompt."}`;
+                const data = await fetchPollinationsJSON(`Generate a fresh variation of this visual description: "${aiPrompt}". It MUST be related to ${deckState.topic}. NO IRRELEVANT CULTURAL CONTENT.`, systemMsg);
                 if (data.imagePrompt) slide.imagePrompt = data.imagePrompt;
             }
 
-            const seed = Date.now() % 100000;
+            btn.innerHTML = '✦ Drawing...';
+            // Use current timestamp + index to ensure a truly unique seed every time
+            const seed = Date.now() + idx;
             slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed, slide.imagePrompt);
             delete slide.customImage; // Clear manual upload flag if user explicitly regens
             refreshSlide(idx);
         } catch (e) {
-            console.error(e);
+            console.error('Regen Error:', e);
+            btn.innerHTML = '⟳ Retry';
             // Fallback seed regen if AI fails
-            const seed = Date.now() % 100000;
+            const seed = Date.now() + idx;
             slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed, slide.imagePrompt);
             refreshSlide(idx);
         }
-        finally { btn.classList.remove('is-loading'); btn.innerHTML = '⟳ Regen Image'; }
+        finally {
+            setTimeout(() => {
+                btn.classList.remove('is-loading');
+                btn.innerHTML = '⟳ Regen Image';
+            }, 800);
+        }
     };
 
     window.triggerUpload = (idx) => {
