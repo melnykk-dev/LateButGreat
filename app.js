@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getImageUrl(topic, subTopic, seed = 0, aiPrompt = null) {
         if (selectedImageSource === 'stock') {
-            return getStockImageUrl(topic, subTopic);
+            return getStockImageUrl(topic, subTopic, seed);
         }
 
         // Vibe modifiers
@@ -142,11 +142,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}`;
     }
 
-    function getStockImageUrl(topic, subTopic) {
-        // Focus on high-quality professional photography for "stock" look
-        const query = `${topic} ${subTopic} professional photography`.replace(/\s+/g, ',');
-        const lock = Math.floor(Math.random() * 1000000);
-        return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}`;
+    function getStockImageUrl(topic, subTopic, seed = 0) {
+        const cleanSub = (subTopic || '').replace(/[:;,\- —]/g, ' ').replace(/\s+/g, ' ').trim();
+        const cleanTopic = (topic || '').replace(/[:;,\- —]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // Use up to 2 words from subTopic to keep query broad but thematic
+        const words = (cleanSub || cleanTopic).split(/\s+/).filter(w => w.length > 2);
+        const query = words.slice(0, 2).join(',') || 'abstract';
+
+        // Unsplash Source (Featured) - very reliable for high-quality variety
+        // Coupling 'seed' with a query-hash to ensure truly unique images per slide
+        const queryHash = query.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+        const finalSeed = Math.abs(queryHash) + Math.floor(seed) + Math.floor(Math.random() * 1000);
+
+        return `https://source.unsplash.com/featured/1280x720/?${encodeURIComponent(query)}&sig=${finalSeed}`;
     }
 
 
