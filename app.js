@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── State ───────────────────────────────────────────────────
     let selectedVibe = 'modern';
     let selectedScale = 7;
-    let deckState = { topic: '', slides: [] };
+    let deckState = { topic: '', slides: [], currentScale: 0.45 };
 
     // ── AI Helpers ───────────────────────────────────────────────
     async function fetchPollinationsJSON(prompt, systemMsg, retryCount = 0) {
@@ -99,24 +99,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function getImageUrl(topic, subTopic, seed = 0) {
+    function getImageUrl(topic, subTopic, seed = 0, aiPrompt = null) {
+        // If AI provided a specific prompt, use it
+        if (aiPrompt) {
+            const hash = (str) => {
+                let h = 0;
+                for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+                return Math.abs(h);
+            };
+            const uniqueKey = hash(topic + subTopic + selectedVibe);
+            const finalSeed = (seed * 1000) + (uniqueKey % 1000000) + Math.floor(Math.random() * 500);
+            return `https://image.pollinations.ai/prompt/${encodeURIComponent(aiPrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
+        }
+
         // Simplify prompt by removing special characters that might confuse the generator
         const cleanSub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
         const cleanTopic = (topic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
 
         // Add vibe context to prompt
         const vibes = {
-            modern: 'professional presentation slide digital art sleak modern',
-            cyberpunk: 'cyberpunk neon futuristic digital art synthwave',
-            classic: 'classic elegant oil painting masterpiece vintage',
-            botanic: 'botanic nature green plants photography high quality',
-            minimalist: 'minimalist clean simple design professional'
+            modern: 'professional presentation slide digital art high resolution 4k sharp sleek',
+            cyberpunk: 'cyberpunk neon futuristic digital art synthwave glowing vibrant detailed',
+            classic: 'classic elegant oil painting masterpiece vintage fine art detailed',
+            botanic: 'botanic nature green plants photography high quality natural soft lighting',
+            minimalist: 'minimalist clean simple design professional high-end minimalist photography'
         };
         const vibePrompt = vibes[selectedVibe] || vibes.modern;
 
-        const prompt = cleanSub ? `${cleanSub} for ${cleanTopic}` : cleanTopic;
-        // Added complexity to seed to ensure diversity
-        const finalSeed = (seed * 12345) + Math.floor(Math.random() * 1000);
+        const prompt = cleanSub ? `"${cleanSub}" in the context of "${cleanTopic}"` : cleanTopic;
+        // Use a more complex seed generation to ensure variety
+        const hash = (str) => {
+            let h = 0;
+            for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+            return Math.abs(h);
+        };
+        const uniqueKey = hash(topic + subTopic + selectedVibe);
+        const finalSeed = (seed * 1000) + (uniqueKey % 1000000) + Math.floor(Math.random() * 500);
+
         return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' ' + vibePrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
     }
 
@@ -235,9 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."]}`;
+                    const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."], "imagePrompt": "A highly descriptive prompt for an AI image generator that perfectly illustrates this sub-topic in the context of the main topic. Style: ${selectedVibe}."}`;
                     const aiResult = await fetchPollinationsJSON(
-                        `Write 3 detailed bullet points about "${subTopic}" in the context of "${topic}".`,
+                        `Write content and a specific image generator prompt for "${subTopic}" in the context of "${topic}".`,
                         systemMsg
                     );
 
@@ -249,12 +268,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         bulletPoints = [`${subTopic} represents a key aspect of ${topic}.`, `Recent developments have transformed how we understand ${subTopic}.`, `The impact of ${subTopic} continues to shape the future of ${topic}.`];
                     }
 
-                    const imgUrl = getImageUrl(topic, subTopic, i);
+                    const imgUrl = getImageUrl(topic, subTopic, i, aiResult?.imagePrompt);
 
                     deckState.slides.push({
                         title: (aiResult?.title && typeof aiResult.title === 'string') ? aiResult.title : subTopic,
                         bulletPoints,
                         imageUrl: imgUrl,
+                        imagePrompt: aiResult?.imagePrompt || null,
                         layout: ['layout-split-left', 'layout-split-right', 'layout-top-image', 'layout-full-image'][Math.floor(Math.random() * 4)]
                     });
 
@@ -348,9 +368,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const W = 1920, H = 1080;
         const availableWidth = presentationPreview.clientWidth || window.innerWidth - 60;
         const scale = Math.min(0.45, availableWidth / W);
+        deckState.currentScale = scale;
 
         const container = document.createElement('div');
         container.className = 'deck-container';
+        container.id = 'deckContainer';
 
         // 1. Title slide
         renderSlide('title', { title: deckState.topic }, container, W, H, scale);
@@ -377,6 +399,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (s.layout === 'chart-slide') initChart(i, s.chartData);
             });
         }, 150);
+    }
+
+    function refreshSlide(idx) {
+        const container = document.getElementById('deckContainer');
+        if (!container) return;
+
+        // Find the existing wrapper for this index
+        const wrappers = container.querySelectorAll('.slide-wrapper');
+        let oldWrapper = null;
+
+        // Find by index (Title is idx='title', Agenda is idx='agenda', etc.)
+        if (idx === 'title') oldWrapper = wrappers[0];
+        else if (idx === 'agenda') oldWrapper = wrappers[1];
+        else if (idx === 'branding') oldWrapper = wrappers[wrappers.length - 1];
+        else {
+            // Index offset: Title(0) + Agenda(1) + SlideIndex(idx)
+            oldWrapper = wrappers[idx + 2];
+        }
+
+        if (!oldWrapper) return;
+
+        const W = 1920, H = 1080;
+        const scale = deckState.currentScale;
+
+        // Create new slide content
+        const tempContainer = document.createElement('div');
+        let slideData = null;
+        if (idx === 'title') slideData = { title: deckState.topic };
+        else if (idx === 'agenda') slideData = { title: 'Overview', items: deckState.slides.map(s => s.title).filter(Boolean) };
+        else if (idx === 'branding') slideData = { title: deckState.topic };
+        else slideData = deckState.slides[idx];
+
+        renderSlide(idx, slideData, tempContainer, W, H, scale);
+
+        const newWrapper = tempContainer.firstChild;
+        if (newWrapper) {
+            container.replaceChild(newWrapper, oldWrapper);
+            // Re-init chart if needed
+            if (slideData.layout === 'chart-slide') {
+                setTimeout(() => initChart(idx, slideData.chartData), 50);
+            }
+        }
     }
 
     function renderSlide(idx, data, container, W, H, scale) {
@@ -642,47 +706,57 @@ document.addEventListener('DOMContentLoaded', () => {
         const layouts = ['layout-split-left', 'layout-split-right', 'layout-top-image', 'layout-full-image', 'layout-full-text'];
         const cur = layouts.indexOf(slide.layout || 'layout-split-left');
         slide.layout = layouts[(cur + 1) % layouts.length];
-        renderDeck();
+        refreshSlide(idx);
     };
 
     window.regenText = async (idx, btn) => {
-        const currentScroll = window.scrollY; // Save scroll position
         const slide = deckState.slides[idx];
         if (!slide || btn.classList.contains('is-loading')) return;
         btn.classList.add('is-loading');
         btn.textContent = '...';
         try {
-            const systemMsg = `JSON generator. Return ONLY: {"title": "${slide.title}", "bulletPoints": ["Point 1.", "Point 2.", "Point 3."]}`;
-            const data = await fetchPollinationsJSON(`Write 3 fresh, detailed bullet points about "${slide.title}" for a presentation on "${deckState.topic}".`, systemMsg);
+            const systemMsg = `JSON generator. Return ONLY: {"title": "${slide.title}", "bulletPoints": ["Point 1.", "Point 2.", "Point 3."], "imagePrompt": "${slide.imagePrompt || 'A descriptive prompt for this slide'}"}`;
+            const data = await fetchPollinationsJSON(`Write 3 fresh, detailed bullet points and a revised image prompt about "${slide.title}" for a presentation on "${deckState.topic}".`, systemMsg);
 
             if (data.bulletPoints?.length) {
                 slide.bulletPoints = data.bulletPoints;
                 if (data.title) slide.title = data.title;
-                renderDeck();
-                window.scrollTo(0, currentScroll); // Restore scroll position
+                if (data.imagePrompt) slide.imagePrompt = data.imagePrompt;
+                refreshSlide(idx);
             }
         } catch (e) {
             console.error(e);
             slide.bulletPoints = [`Fresh insight on ${slide.title}.`, `Updated data for ${deckState.topic}.`, `Ongoing developments in this field.`];
-            renderDeck();
-            window.scrollTo(0, currentScroll);
+            refreshSlide(idx);
         }
         finally { btn.classList.remove('is-loading'); btn.innerHTML = '✦ Regen Text'; }
     };
 
     window.regenImage = async (idx, btn) => {
-        const currentScroll = window.scrollY; // Save scroll position
         const slide = deckState.slides[idx];
         if (!slide || btn.classList.contains('is-loading')) return;
         btn.classList.add('is-loading');
         btn.textContent = '...';
         try {
+            // Ask AI for a slightly different image prompt to ensure variety if we already have one
+            let aiPrompt = slide.imagePrompt;
+            if (aiPrompt) {
+                const systemMsg = `JSON generator. Return ONLY: {"imagePrompt": "A new, slightly varied but still highly relevant image prompt."}`;
+                const data = await fetchPollinationsJSON(`Generate a fresh variation of this image prompt: "${aiPrompt}". Keep it on topic for ${deckState.topic}.`, systemMsg);
+                if (data.imagePrompt) slide.imagePrompt = data.imagePrompt;
+            }
+
             const seed = Date.now() % 100000;
-            slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed);
+            slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed, slide.imagePrompt);
             delete slide.customImage; // Clear manual upload flag if user explicitly regens
-            renderDeck();
-            window.scrollTo(0, currentScroll); // Restore scroll position
-        } catch (e) { console.error(e); }
+            refreshSlide(idx);
+        } catch (e) {
+            console.error(e);
+            // Fallback seed regen if AI fails
+            const seed = Date.now() % 100000;
+            slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed, slide.imagePrompt);
+            refreshSlide(idx);
+        }
         finally { btn.classList.remove('is-loading'); btn.innerHTML = '⟳ Regen Image'; }
     };
 
@@ -700,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deckState.slides[idx]) {
                 deckState.slides[idx].imageUrl = e.target.result;
                 deckState.slides[idx].customImage = true; // Mark as custom to prevent auto-overwrites
-                renderDeck();
+                refreshSlide(idx);
             }
         };
         reader.readAsDataURL(file);
