@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const deckOptions = document.getElementById('deckOptions');
 
     // ── State ───────────────────────────────────────────────────
+    let selectedVibe = 'modern';
+    let selectedScale = 7;
+    let deckState = { topic: '', slides: [] };
+
     // ── AI Helpers (Migrated from server.js) ───────────────────
     async function fetchPollinationsJSON(prompt, systemMsg) {
         const messages = [
