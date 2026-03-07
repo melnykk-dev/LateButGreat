@@ -32,12 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 60000);
                 try {
-                    // Using GET to avoid CORS preflight (OPTIONS) issues
-                    const fullPrompt = `System: ${systemMsg}\n\nUser: ${prompt}`;
-                    const url = `https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=${model}&json=true&seed=${42 + attempt}`;
-
-                    const res = await fetch(url, {
-                        method: 'GET',
+                    // Send as text/plain to avoid CORS preflight (OPTIONS)
+                    const res = await fetch('https://text.pollinations.ai/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            messages,
+                            jsonMode: true,
+                            model,
+                            seed: 42 + attempt
+                        }),
                         signal: controller.signal
                     });
                     clearTimeout(timeout);
