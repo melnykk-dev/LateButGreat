@@ -21,7 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let deckState = { topic: '', slides: [] };
 
     // ── AI Helpers ───────────────────────────────────────────────
-    async function fetchPollinationsJSON(prompt, systemMsg) {
+    async function fetchPollinationsJSON(prompt, systemMsg, retryCount = 0) {
+        const MAX_RETRIES = 3;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000);
         
@@ -35,6 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             clearTimeout(timeout);
+
+            if (res.status === 429 && retryCount < MAX_RETRIES) {
+                const backoff = Math.pow(2, retryCount) * 1500 + Math.random() * 1000;
+                showLoading(`Server busy, retrying in ${Math.round(backoff/1000)}s...`);
+                await new Promise(r => setTimeout(r, backoff));
+                return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
+            }
 
             if (!res.ok) {
                 throw new Error(`API returned ${res.status}`);
@@ -60,6 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error("Could not parse API response");
         } catch (e) {
             clearTimeout(timeout);
+            if (e.name === 'AbortError' || e.message.includes('timeout')) {
+                if (retryCount < MAX_RETRIES) {
+                    showLoading(`Request timed out, retrying...`);
+                    return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
+                }
+            }
             throw e;
         }
     }
