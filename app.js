@@ -149,26 +149,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getStockImageUrl(topic, subTopic, seed = 0) {
-        const cleanSub = (subTopic || '').replace(/[:;,\- —]/g, ' ').replace(/\s+/g, ' ').trim();
-        const cleanTopic = (topic || '').replace(/[:;,\- —]/g, ' ').replace(/\s+/g, ' ').trim();
+        // Absolute Reliability: Simplify to a single high-probability keyword
+        const cleanSub = (subTopic || '').replace(/[:;,\- —]/g, ' ').split(/\s+/).filter(w => w.length > 3)[0];
+        const cleanTopic = (topic || '').replace(/[:;,\- —]/g, ' ').split(/\s+/).filter(w => w.length > 3)[0];
 
-        // Strategy: Simplified Hashtags (like Pexels/hashtags)
-        // We pick top 2 keywords + 1 random 'diversity' tag to force unique results
-        const keywords = (cleanSub || cleanTopic).split(/\s+/).filter(w => w.length > 3);
-        const tags = keywords.slice(0, 2);
+        // Prefer sub-topic keyword, fallback to main topic keyword
+        const query = (cleanSub || cleanTopic || 'business').toLowerCase();
 
-        const diversityTags = ['minimal', 'vibrant', 'cinematic', 'professional', 'modern', 'detailed', 'bright', 'sleek', 'aerial', 'macro'];
-        const anchor = diversityTags[Math.floor(seed) % diversityTags.length];
-        tags.push(anchor);
-
-        const query = tags.join(',');
-
-        // Multi-layered cache busting: lock, sig, and random timestamp
-        const lock = Math.floor(seed) + Math.floor(Math.random() * 1000);
+        // Multi-layered cache busting: lock and random timestamp
+        // The 'lock' is the ONLY stable way to get variety for the same tag on LoremFlickr
+        const lock = Math.floor(seed) + Math.floor(Math.random() * 10000);
         const timestamp = Date.now();
 
-        // LoremFlickr with /all flag ensures it uses ALL tags for better relevance
-        return `https://loremflickr.com/all/1280/720/${encodeURIComponent(query)}?lock=${lock}&t=${timestamp}`;
+        // REMOVED /all/ flag: this ensures it returns a relevant image even if exact tags aren't found
+        // rather than falling back to the 'not found' cat placeholder.
+        return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}&t=${timestamp}`;
     }
 
 
