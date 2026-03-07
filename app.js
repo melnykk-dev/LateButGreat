@@ -25,21 +25,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const MAX_RETRIES = 3;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000);
-        
-        try {
-            const cleanPrompt = `${prompt} JSON Format: ${systemMsg}`;
-            const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=openai&json=true&seed=${Math.floor(Math.random() * 100000)}`;
 
-            const res = await fetch(url, { 
-                method: 'GET', 
-                signal: controller.signal 
+        try {
+            const seed = Math.floor(Math.random() * 100000);
+            const cleanPrompt = `${prompt} JSON Format: ${systemMsg}`;
+            const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=openai&json=true&seed=${seed}`;
+
+            const res = await fetch(url, {
+                method: 'GET',
+                signal: controller.signal
             });
-            
+
             clearTimeout(timeout);
 
             if (res.status === 429 && retryCount < MAX_RETRIES) {
                 const backoff = Math.pow(2, retryCount) * 1500 + Math.random() * 1000;
-                showLoading(`Server busy, retrying in ${Math.round(backoff/1000)}s...`);
+                showLoading(`Server busy, retrying in ${Math.round(backoff / 1000)}s...`);
                 await new Promise(r => setTimeout(r, backoff));
                 return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
             }
@@ -49,30 +50,43 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const text = await res.text();
-            const firstBrace = text.indexOf('{');
-            const lastBrace = text.lastIndexOf('}');
-            
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                try { 
-                    return JSON.parse(text.substring(firstBrace, lastBrace + 1)); 
-                } catch (_) { }
+
+            // Helper to clean and parse JSON
+            const tryParse = (str) => {
+                const firstBrace = str.indexOf('{');
+                const lastBrace = str.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    try {
+                        return JSON.parse(str.substring(firstBrace, lastBrace + 1));
+                    } catch (_) { }
+                }
+
+                const arrStart = str.indexOf('['), arrEnd = str.lastIndexOf(']');
+                if (arrStart !== -1 && arrEnd !== -1) {
+                    try {
+                        return { bulletPoints: JSON.parse(str.substring(arrStart, arrEnd + 1)) };
+                    } catch (_) { }
+                }
+                return null;
+            };
+
+            const data = tryParse(text);
+            if (data) return data;
+
+            // If we're here, parsing failed. Retry with a different seed.
+            if (retryCount < MAX_RETRIES) {
+                showLoading(`Refining response (${retryCount + 1}/${MAX_RETRIES})...`);
+                await new Promise(r => setTimeout(r, 1000));
+                return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
             }
-            
-            const arrStart = text.indexOf('['), arrEnd = text.lastIndexOf(']');
-            if (arrStart !== -1 && arrEnd !== -1) {
-                try { 
-                    return { bulletPoints: JSON.parse(text.substring(arrStart, arrEnd + 1)) }; 
-                } catch (_) { }
-            }
-            
+
             throw new Error("Could not parse API response");
         } catch (e) {
             clearTimeout(timeout);
-            if (e.name === 'AbortError' || e.message.includes('timeout')) {
-                if (retryCount < MAX_RETRIES) {
-                    showLoading(`Request timed out, retrying...`);
-                    return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
-                }
+            if ((e.name === 'AbortError' || e.message.includes('timeout')) && retryCount < MAX_RETRIES) {
+                showLoading(`Request timed out, retrying...`);
+                await new Promise(r => setTimeout(r, 1000));
+                return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
             }
             throw e;
         }
@@ -187,12 +201,12 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let i = 0; i < subTopics.length; i++) {
                 const subTopic = subTopics[i];
                 showLoading(`Generating slide ${i + 1} of ${subTopics.length}: ${subTopic}...`);
-                
+
                 // Add delay between requests to avoid rate limiting
                 if (i > 0) {
                     await new Promise(r => setTimeout(r, 2000));
                 }
-                
+
                 try {
                     const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."]}`;
                     const aiResult = await fetchPollinationsJSON(
@@ -235,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Chart slide
             showLoading('Generating data visualization...');
             await new Promise(r => setTimeout(r, 2000)); // Delay before chart request
-            
+
             try {
                 const systemMsg = `JSON analyst. Return ONLY valid JSON: {"title": "string", "type": "bar", "labels": ["Label1","Label2","Label3","Label4","Label5"], "values": [number, number, number, number, number]}`;
                 const data = await fetchPollinationsJSON(`Generate 5 quantitative data points about "${topic}".`, systemMsg);
@@ -267,18 +281,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Preload all images before showing the deck
-            showLoading('Downloading generated assets...');
+            // Preload all images before showing the deck with explicit status
             const imageUrls = deckState.slides.map(s => s.imageUrl).filter(Boolean);
+            if (imageUrls.length > 0) {
+                showLoading(`Preparing ${imageUrls.length} visual assets...`);
 
-            await Promise.all(imageUrls.map(url => {
-                return new Promise((resolve) => {
-                    const img = new Image();
-                    img.onload = resolve;
-                    img.onerror = resolve; // Continue even if one fails
-                    img.src = url;
-                });
-            }));
+                let loadedCount = 0;
+                await Promise.all(imageUrls.map(url => {
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        const timer = setTimeout(() => {
+                            console.warn(`Image load timeout: ${url}`);
+                            resolve();
+                        }, 12000); // 12s timeout per image
+
+                        img.onload = () => {
+                            clearTimeout(timer);
+                            loadedCount++;
+                            showLoading(`Downloading assets (${loadedCount}/${imageUrls.length})...`);
+                            resolve();
+                        };
+                        img.onerror = () => {
+                            clearTimeout(timer);
+                            console.warn(`Image failed to load: ${url}`);
+                            resolve();
+                        };
+                        img.src = url;
+                    });
+                }));
+            }
 
             // Render the full deck NOW
             renderDeck();
@@ -437,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof idx === 'number') {
             const magicBar = document.createElement('div');
             magicBar.className = 'magic-bar';
-            
+
             // Create buttons with proper event handling
             const layoutBtn = document.createElement('button');
             layoutBtn.className = 'magic-btn';
@@ -624,20 +655,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1920, 1080] });
             const slides = document.querySelectorAll('.slide-wrapper .slide');
 
+            // Dedicated container for invisible rendering
             const renderContainer = document.createElement('div');
-            renderContainer.style.position = 'absolute';
-            renderContainer.style.left = '-9999px';
-            renderContainer.style.top = '0';
-            renderContainer.style.width = '1920px';
-            renderContainer.style.height = '1080px';
+            renderContainer.style.cssText = 'position:fixed; left:-9999px; top:0; width:1920px; height:1080px; overflow:hidden; background:#000; z-index:-1;';
             document.body.appendChild(renderContainer);
 
             for (let i = 0; i < slides.length; i++) {
+                btn.innerHTML = `Exporting Slide ${i + 1}/${slides.length}...`;
+
                 const slide = slides[i];
                 const clone = slide.cloneNode(true);
-                clone.style.transform = 'none';
-                clone.style.position = 'relative';
 
+                // CRITICAL: Reset transform and ensure full size for capture
+                clone.style.cssText = 'width:1920px; height:1080px; transform:none !important; position:relative; top:0; left:0; margin:0; border-radius:0; box-shadow:none; filter:none; overflow:hidden;';
+
+                // Remove interactive elements from PDF
+                clone.querySelectorAll('.magic-bar, .magic-btn').forEach(el => el.remove());
+
+                // Sync canvases (charts)
                 const origCanvases = slide.querySelectorAll('canvas');
                 const cloneCanvases = clone.querySelectorAll('canvas');
                 for (let c = 0; c < origCanvases.length; c++) {
@@ -649,10 +684,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 renderContainer.innerHTML = '';
                 renderContainer.appendChild(clone);
-                await new Promise(r => setTimeout(r, 50));
 
-                const canvas = await html2canvas(clone, { scale: 1, useCORS: true, width: 1920, height: 1080, windowWidth: 1920, windowHeight: 1080 });
-                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                // Allow a moment for browsers to paint the clone
+                await new Promise(r => setTimeout(r, 150));
+
+                const canvas = await html2canvas(clone, {
+                    scale: 1,
+                    useCORS: true,
+                    allowTaint: true,
+                    width: 1920,
+                    height: 1080,
+                    backgroundColor: null,
+                    logging: false
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.9);
 
                 if (i > 0) pdf.addPage([1920, 1080], 'landscape');
                 pdf.addImage(imgData, 'JPEG', 0, 0, 1920, 1080);
@@ -661,8 +707,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.removeChild(renderContainer);
             pdf.save(`${deckState.topic || 'Presentation'}.pdf`);
         } catch (err) {
-            console.error(err);
-            alert('Failed to generate PDF export.');
+            console.error('PDF Export Error:', err);
+            alert('Failed to generate PDF. Check console for details.');
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
