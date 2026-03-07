@@ -104,8 +104,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const cleanSub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
         const cleanTopic = (topic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
 
+        // Add vibe context to prompt
+        const vibes = {
+            modern: 'professional presentation slide digital art sleak modern',
+            cyberpunk: 'cyberpunk neon futuristic digital art synthwave',
+            classic: 'classic elegant oil painting masterpiece vintage',
+            botanic: 'botanic nature green plants photography high quality',
+            minimalist: 'minimalist clean simple design professional'
+        };
+        const vibePrompt = vibes[selectedVibe] || vibes.modern;
+
         const prompt = cleanSub ? `${cleanSub} for ${cleanTopic}` : cleanTopic;
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' professional presentation slide digital art')}?width=1280&height=720&nologo=true&seed=${seed}`;
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ' ' + vibePrompt)}?width=1280&height=720&nologo=true&seed=${seed}`;
+    }
+
+    function getFallbackImageUrl(topic, subTopic) {
+        const query = (subTopic || topic || 'presentation').replace(/\s+/g, ',');
+        return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}`;
     }
 
 
@@ -421,7 +436,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgHtml = data.imageUrl
                 ? `<div class="top-img-wrap loading">
                      <div class="img-placeholder">✦ Generating visual...</div>
-                     <img src="${escHtml(data.imageUrl)}" alt="slide visual" onload="this.parentElement.classList.remove('loading')" onerror="this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove()">
+                     <img src="${escHtml(data.imageUrl)}" alt="slide visual" 
+                        onload="this.parentElement.classList.remove('loading')" 
+                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title)}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
                    </div>`
                 : '';
 
@@ -441,7 +458,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgHtml = data.imageUrl
                 ? `<div class="img-col loading">
                      <div class="img-placeholder">✦ Generating visual...</div>
-                     <img src="${escHtml(data.imageUrl)}" alt="slide visual" onload="this.parentElement.classList.remove('loading')" onerror="this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove()">
+                     <img src="${escHtml(data.imageUrl)}" alt="slide visual" 
+                        onload="this.parentElement.classList.remove('loading')" 
+                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title)}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
                    </div>`
                 : '';
 
@@ -695,6 +714,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const slides = document.querySelectorAll('.slide-wrapper .slide');
             const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'px',
+                format: [1920, 1080],
+                hotfixes: ['px_scaling']
+            });
 
             // Dedicated container for invisible rendering
             const renderContainer = document.createElement('div');
