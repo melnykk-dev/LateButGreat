@@ -92,7 +92,8 @@ open index.html # That's it. No server. No Node. No Stress.
 ```
 
 > [!CAUTION]
-> Ensure you have an active internet connection! The AI engine talks directly to the Pollinations & Wikipedia API streams from your browser.
+> Ensure you have an active internet connection! The AI engine talks directly to the Pollinations & Wikipedia API streams from your browser.<br>
+> Your requests can be limited by your IP. Resets quickly. Generations are free, but sometimes can slow you down if you generate too often.
 
 
 <p align="center">
