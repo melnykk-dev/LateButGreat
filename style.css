@@ -999,6 +999,54 @@ select:focus {
     background: var(--bg-elevated);
 }
 
+/* ── SOURCE STRIP ────────────────────────────────────────── */
+.plan-source-strip {
+    display: flex;
+    gap: var(--s3);
+    margin-bottom: var(--s5);
+}
+
+.source-swatch {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: var(--s3) var(--s4);
+    border-radius: 12px;
+    border: 1px solid var(--bg-border);
+    background: var(--bg-elevated);
+    cursor: pointer;
+    transition: all var(--dur-med) ease;
+}
+
+.source-swatch strong {
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    margin-bottom: 2px;
+    transition: color var(--dur-med) ease;
+}
+
+.source-swatch span {
+    font-size: 0.7rem;
+    color: var(--text-dim-extra);
+}
+
+.source-swatch.active {
+    border-color: var(--indigo-glow);
+    background: rgba(109, 93, 252, 0.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.source-swatch.active strong {
+    color: var(--indigo-glow);
+}
+
+.source-swatch:hover:not(.active) {
+    border-color: var(--bg-border-hi);
+    transform: translateY(-1px);
+}
+
 .topics-list {
     display: flex;
     flex-direction: column;

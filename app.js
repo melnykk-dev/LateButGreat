@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const realGenerateBtn = document.getElementById('realGenerateBtn');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const loadingStatus = document.getElementById('loadingStatus');
+    const sourceStrip = document.getElementById('sourceStrip');
 
     const previewSection = document.getElementById('previewSection');
     const presentationPreview = document.getElementById('presentationPreview');
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── State ───────────────────────────────────────────────────
     let selectedVibe = 'modern';
+    let selectedImageSource = 'ai';
     let selectedScale = 7;
     let deckState = { topic: '', slides: [], currentScale: 0.45 };
 
@@ -100,6 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getImageUrl(topic, subTopic, seed = 0, aiPrompt = null) {
+        if (selectedImageSource === 'stock') {
+            return getStockImageUrl(topic, subTopic);
+        }
+
         // Vibe modifiers
         const vibes = {
             modern: 'professional high-end photography, sleek modern aesthetic, 8k resolution, clean lighting',
@@ -132,6 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFallbackImageUrl(topic, subTopic) {
         const query = (subTopic || topic || 'abstract').replace(/\s+/g, ',');
         // Add a random lock to ensure variety across slides
+        const lock = Math.floor(Math.random() * 1000000);
+        return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}`;
+    }
+
+    function getStockImageUrl(topic, subTopic) {
+        // Focus on high-quality professional photography for "stock" look
+        const query = `${topic} ${subTopic} professional photography`.replace(/\s+/g, ',');
         const lock = Math.floor(Math.random() * 1000000);
         return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}`;
     }
@@ -187,6 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     vibeStrip.querySelectorAll('.vibe-swatch').forEach(sw => sw.addEventListener('click', () => applyVibe(sw.dataset.v)));
+
+    function applyImageSource(source) {
+        selectedImageSource = source;
+        sourceStrip.querySelectorAll('.source-swatch').forEach(s => s.classList.toggle('active', s.dataset.s === source));
+    }
+    sourceStrip.querySelectorAll('.source-swatch').forEach(sw => sw.addEventListener('click', () => applyImageSource(sw.dataset.s)));
 
     // ── PLAN / GENERATE FLOW ────────────────────────────────────
     planBtn.addEventListener('click', async () => {
