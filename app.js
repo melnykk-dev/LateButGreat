@@ -102,39 +102,38 @@ document.addEventListener('DOMContentLoaded', () => {
     function getImageUrl(topic, subTopic, seed = 0, aiPrompt = null) {
         // Vibe modifiers
         const vibes = {
-            modern: 'professional corporate photography, sleek technology, clean lighting, 4k resolution',
-            cyberpunk: 'futuristic neon, synthwave aesthetic, high-tech glowing machinery, vibrant colors',
-            classic: 'elegant fine art, museum quality, professional lighting, sophisticated',
-            botanic: 'lush nature, greenhouse aesthetic, organic textures, soft natural light',
-            minimalist: 'minimalist product photography, vast negative space, premium clean look'
+            modern: 'professional high-end photography, sleek modern aesthetic, 8k resolution, clean lighting',
+            cyberpunk: 'futuristic neon, tech-heavy aesthetic, glowing elements, vibrant complex machinery',
+            classic: 'premium elegant photography, sophisticated display, museum-quality lighting',
+            botanic: 'eco-friendly style, natural organic textures, bright clean lighting',
+            minimalist: 'minimalist product shot, simple clean background, vast negative space'
         };
         const vibePrompt = vibes[selectedVibe] || vibes.modern;
 
-        // Force the main topic and vibe to be included to prevent hallucinations
+        // Dynamic Context Guard: Strictly lock onto the USER'S TOPIC
+        const mainTopic = (topic || 'technology').trim();
+        const sub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // Build a prompt that anchors the AI to the topic regardless of its own "hallucinations"
         let finalPrompt = '';
         if (aiPrompt) {
-            // Even if AI provides a prompt, mix in the main topic and vibe for safety
-            finalPrompt = `${aiPrompt}, ${topic}, ${vibePrompt}`;
+            finalPrompt = `${aiPrompt}, in the style of ${mainTopic}, ${vibePrompt}`;
         } else {
-            const cleanSub = (subTopic || '').replace(/[:;,\-]/g, ' ').replace(/\s+/g, ' ').trim();
-            finalPrompt = `${cleanSub} ${topic}, ${vibePrompt}`;
+            finalPrompt = `${sub} related to ${mainTopic}, ${vibePrompt}`;
         }
 
-        // Robust seed generation for maximum variety
-        const hash = (str) => {
-            let h = 0;
-            for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-            return Math.abs(h);
-        };
-        const uniqueKey = hash(topic + subTopic + selectedVibe + seed);
-        const finalSeed = (seed * 777) + (uniqueKey % 1000000) + Math.floor(Math.random() * 9999);
+        // Maximum seed entropy to prevent repetitive "cached" images
+        const randomSalt = Math.floor(Math.random() * 2000000);
+        const finalSeed = (seed % 1000000) + randomSalt;
 
         return `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1280&height=720&nologo=true&seed=${finalSeed}`;
     }
 
     function getFallbackImageUrl(topic, subTopic) {
-        const query = (subTopic || topic || 'presentation').replace(/\s+/g, ',');
-        return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}`;
+        const query = (subTopic || topic || 'abstract').replace(/\s+/g, ',');
+        // Add a random lock to ensure variety across slides
+        const lock = Math.floor(Math.random() * 1000000);
+        return `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}`;
     }
 
 
@@ -247,9 +246,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."], "imagePrompt": "A highly descriptive visual description for an image generator (no people). Focus STRICTLY on ${topic}. Example: 'A sleek white Samsung phone on a marble table, professional lighting'."}`;
+                    const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."], "imagePrompt": "A highly descriptive visual description for an image generator (no people). Focus STRICTLY on ${topic}."}`;
                     const aiResult = await fetchPollinationsJSON(
-                        `Write content and a SAMSUNG/TOPIC SPECIFIC image generator prompt for "${subTopic}" in the context of "${topic}". DO NOT mention other countries or cultures.`,
+                        `Write content and a highly relevant image generator prompt for "${subTopic}" in the context of "${topic}". DO NOT mention irrelevant countries, cultures or statues unless specifically asked. Stay on topic: ${topic}.`,
                         systemMsg
                     );
 
@@ -429,6 +428,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const newWrapper = tempContainer.firstChild;
         if (newWrapper) {
             container.replaceChild(newWrapper, oldWrapper);
+
+            // Post-render UI safety: Ensure loading state clears
+            const loader = newWrapper.querySelector('.loading');
+            if (loader) {
+                // Instantly check cache
+                const img = loader.querySelector('img');
+                if (img && img.complete) {
+                    loader.classList.remove('loading');
+                }
+                // Timeout safety: 12 seconds max
+                setTimeout(() => {
+                    if (loader.classList.contains('loading')) {
+                        loader.classList.remove('loading');
+                    }
+                }, 12000);
+            }
+
             // Re-init chart if needed
             if (slideData.layout === 'chart-slide') {
                 setTimeout(() => initChart(idx, slideData.chartData), 50);
@@ -494,10 +510,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const imgHtml = data.imageUrl
                 ? `<div class="top-img-wrap loading">
-                     <div class="img-placeholder">✦ Generating visual...</div>
+                     <div class="img-placeholder">✦ Preparing Visual...</div>
                      <img src="${escHtml(data.imageUrl)}" alt="slide visual" 
                         onload="this.parentElement.classList.remove('loading')" 
-                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title).replace(/'/g, "\\'")}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
+                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title).replace(/'/g, "\\'")}'; } else { this.parentElement.classList.remove('loading'); this.remove(); }">
                    </div>`
                 : '';
 
@@ -516,10 +532,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const imgHtml = data.imageUrl
                 ? `<div class="img-col loading">
-                     <div class="img-placeholder">✦ Generating visual...</div>
+                     <div class="img-placeholder">✦ Preparing Visual...</div>
                      <img src="${escHtml(data.imageUrl)}" alt="slide visual" 
                         onload="this.parentElement.classList.remove('loading')" 
-                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title).replace(/'/g, "\\'")}'; } else { this.previousElementSibling.innerText='Visual unavailable'; this.parentElement.classList.remove('loading'); this.remove(); }">
+                        onerror="if(!this.dataset.fallback){ this.dataset.fallback=true; this.src='${getFallbackImageUrl(deckState.topic, data.title).replace(/'/g, "\\'")}'; } else { this.parentElement.classList.remove('loading'); this.remove(); }">
                    </div>`
                 : '';
 
@@ -731,24 +747,21 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.add('is-loading');
         btn.innerHTML = '✦ Thinking...';
         try {
-            // Ask AI for a slightly different image prompt to ensure variety if we already have one
+            // Ask AI for a visually distinct image prompt to ensure variety
             let aiPrompt = slide.imagePrompt;
-            if (aiPrompt) {
-                const systemMsg = `JSON generator. Return ONLY: {"imagePrompt": "A new, slightly varied but still HIGHLY RELEVANT TO ${deckState.topic} image prompt."}`;
-                const data = await fetchPollinationsJSON(`Generate a fresh variation of this visual description: "${aiPrompt}". It MUST be related to ${deckState.topic}. NO IRRELEVANT CULTURAL CONTENT.`, systemMsg);
-                if (data.imagePrompt) slide.imagePrompt = data.imagePrompt;
-            }
+            const systemMsg = `JSON generator. Return ONLY: {"imagePrompt": "A highly descriptive, visually distinct version of ${slide.title} in the context of ${deckState.topic}. NO IRRELEVANT CULTURAL CONTENT."}`;
+            const data = await fetchPollinationsJSON(`Generate a fresh visual description for ${deckState.topic} / ${slide.title}. Use a new angle or composition. Stay focused on ${deckState.topic}.`, systemMsg);
+            if (data.imagePrompt) slide.imagePrompt = data.imagePrompt;
 
             btn.innerHTML = '✦ Drawing...';
-            // Use current timestamp + index to ensure a truly unique seed every time
-            const seed = Date.now() + idx;
+            // Use current timestamp + index + random to ensure a truly unique seed every time
+            const seed = Date.now() + idx + Math.floor(Math.random() * 10000);
             slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed, slide.imagePrompt);
             delete slide.customImage; // Clear manual upload flag if user explicitly regens
             refreshSlide(idx);
         } catch (e) {
             console.error('Regen Error:', e);
             btn.innerHTML = '⟳ Retry';
-            // Fallback seed regen if AI fails
             const seed = Date.now() + idx;
             slide.imageUrl = getImageUrl(deckState.topic, slide.title, seed, slide.imagePrompt);
             refreshSlide(idx);
@@ -757,7 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 btn.classList.remove('is-loading');
                 btn.innerHTML = '⟳ Regen Image';
-            }, 800);
+            }, 600);
         }
     };
 
