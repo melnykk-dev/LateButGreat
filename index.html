@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en" data-vibe="modern">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LateButGreat — AI Presentation Studio</title>
+    <meta name="description"
+        content="The AI-powered creative studio for presentations and academic papers. Build something impressive.">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body>
+
+    <!-- AMBIENT AURORA BACKGROUND -->
+    <div class="aurora-bg" aria-hidden="true">
+        <div class="aurora-orb aurora-orb-1"></div>
+        <div class="aurora-orb aurora-orb-2"></div>
+        <div class="aurora-orb aurora-orb-3"></div>
+    </div>
+
+    <!-- THEME SWITCHER SIDEBAR -->
+    <div class="theme-switcher" aria-label="Vibe theme switcher">
+        <div class="theme-opt active" data-theme="modern" title="Modern — Electric Indigo"></div>
+        <div class="theme-opt" data-theme="classic" title="Classic — Gilded"></div>
+        <div class="theme-opt" data-theme="cyberpunk" title="Cyberpunk — Neon"></div>
+        <div class="theme-opt" data-theme="botanic" title="Botanic — Living Green"></div>
+        <div class="theme-opt" data-theme="minimalist" title="Minimalist — Pure"></div>
+    </div>
+
+    <div class="page-wrap">
+
+        <!-- NAV -->
+        <nav class="nav">
+            <div class="nav-logo">Late<span>But</span>Great</div>
+            <div class="nav-badge">AI Engine v3 · Free</div>
+        </nav>
+
+        <!-- HERO -->
+        <section class="hero">
+            <div class="hero-eyebrow">AI Presentation Studio</div>
+            <h1>Make something<br><em>genuinely impressive.</em></h1>
+            <p class="hero-sub">
+                Type a topic. The AI brainstorms a plan.
+                You refine it. It builds the deck.
+                No templates. No filler. Just ideas made visible.
+            </p>
+
+            <!-- THE HERO PROMPT INPUT -->
+            <div class="prompt-stage" id="promptStage">
+                <div class="prompt-glow-ring" id="promptGlow"></div>
+                <div class="prompt-wrap">
+                    <div class="prompt-icon">✦</div>
+                    <input type="text" id="topicInput"
+                        placeholder="e.g. History of Roblox, Climate Change Policy, The Silk Road..." autocomplete="off"
+                        spellcheck="false" style="padding-right: 180px;">
+                    <div class="prompt-opts">
+                        <button id="planBtn" class="plan-btn">
+                            <span>Create Plan</span>
+                            <span>✦</span>
+                        </button>
+                    </div>
+                </div>
+
+
+                <!-- Unified Configuration Panel -->
+                <div class="config-wrapper">
+                    <div id="configUnified" class="config-panel">
+                        <!-- Presentation Options (Shown for Deck/Both) -->
+                        <div id="deckOptions">
+                            <div class="config-row">
+                                <span class="config-label">Slide Count:</span>
+                                <div class="slide-count-chips" id="deckScaleChips">
+                                    <button class="count-chip" data-val="5">5</button>
+                                    <button class="count-chip" data-val="6">6</button>
+                                    <button class="count-chip active" data-val="7">7</button>
+                                    <button class="count-chip" data-val="8">8</button>
+                                    <button class="count-chip" data-val="9">9</button>
+                                </div>
+                            </div>
+                            <div class="branding-toggle-row">
+                                <button class="branding-chip active" id="brandingChip">
+                                    <span class="branding-chip-dot"></span>
+                                    Show Branding Slide
+                                </button>
+                                <input type="checkbox" id="showBranding" checked hidden>
+                                <p class="branding-chip-hint">Adds attribution & QR code final slide.</p>
+                            </div>
+                        </div>
+
+
+                    </div>
+                </div>
+
+                <!-- AI PLAN CARD — appears after planning -->
+                <div id="planCard" class="plan-card hidden">
+                    <div class="plan-card-header">
+                        <div class="plan-card-title">AI Work-Plan</div>
+                    </div>
+
+                    <div class="plan-card-label">Visual Vibe</div>
+                    <div class="plan-vibe-strip" id="vibeStrip">
+                        <div class="vibe-swatch" data-v="modern">Modern</div>
+                        <div class="vibe-swatch" data-v="cyberpunk">Cyberpunk</div>
+                        <div class="vibe-swatch" data-v="classic">Classic</div>
+                        <div class="vibe-swatch" data-v="botanic">Botanic</div>
+                        <div class="vibe-swatch" data-v="minimalist">Minimal</div>
+                    </div>
+
+                    <div class="plan-card-label">Planned Sections — click to edit, drag to reorder</div>
+                    <div class="topics-list" id="subTopicList"></div>
+
+                    <button id="realGenerateBtn" class="finalize-btn">
+                        <span>Finalize & Build</span>
+                        <span>→</span>
+                    </button>
+                </div>
+        </section>
+
+        <!-- LOADING (THINKING WAVEFORM) -->
+        <div id="loadingIndicator" class="loading-stage">
+            <div class="loading-waveform" aria-hidden="true">
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+                <div class="lw-bar"></div>
+            </div>
+            <p id="loadingStatus">AI is thinking...</p>
+        </div>
+
+        <!-- PRESENTATION PREVIEW -->
+        <section id="previewSection" class="preview-section hidden">
+            <div class="preview-header">
+                <h2>Your Deck</h2>
+                <button id="exportBtn" class="export-btn">↓ Export PDF</button>
+            </div>
+            <div id="presentationPreview"></div>
+        </section>
+
+
+        <!-- FOOTER -->
+        <footer>
+            <span>LateButGreat AI Studio | by Artem Melnyk</span> · Research by Wikipedia · Visuals by Aurora Design
+            System
+        </footer>
+    </div>
+
+    <!-- CELEBRATION OVERLAY -->
+    <div class="celebration-overlay" id="celebrationOverlay" aria-hidden="true"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
