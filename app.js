@@ -161,7 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         realGenerateBtn.disabled = true;
         previewSection.classList.add('hidden');
-        paperSection.classList.add('hidden');
 
         try {
             deckState.topic = topic;
@@ -589,68 +588,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.body.removeChild(renderContainer);
             pdf.save(`${deckState.topic || 'Presentation'}.pdf`);
-        } catch (err) {
-            console.error(err);
-            alert('Failed to generate PDF export.');
-        } finally {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
-    });
-
-    document.getElementById('exportPaperBtn')?.addEventListener('click', async (e) => {
-        const btn = e.target;
-        const originalText = btn.innerHTML;
-        btn.innerHTML = 'Generating PDF...';
-        btn.disabled = true;
-
-        try {
-            const { jsPDF } = window.jspdf;
-            const doc = document.querySelector('.mla-document');
-            if (!doc) throw new Error("No document found");
-
-            const pdfW = 816;
-            const pdfH = 1056;
-
-            const renderContainer = document.createElement('div');
-            renderContainer.style.position = 'absolute';
-            renderContainer.style.left = '-9999px';
-            renderContainer.style.top = '0';
-            renderContainer.style.width = `${pdfW}px`;
-            renderContainer.style.background = 'white';
-            renderContainer.style.color = 'black';
-            document.body.appendChild(renderContainer);
-
-            const clone = doc.cloneNode(true);
-            clone.style.transform = 'none';
-            clone.style.margin = '0';
-
-            renderContainer.appendChild(clone);
-            await new Promise(r => setTimeout(r, 50));
-
-            const canvas = await html2canvas(clone, { scale: 2, useCORS: true, width: pdfW, windowWidth: pdfW });
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pdfW, pdfH] });
-
-            const imgW = pdfW;
-            const imgH = (canvas.height * pdfW) / canvas.width;
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-            let hLeft = imgH;
-            let position = 0;
-
-            pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-            hLeft -= pdfH;
-
-            while (hLeft > 0) {
-                position = hLeft - imgH;
-                pdf.addPage();
-                pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-                hLeft -= pdfH;
-            }
-
-            document.body.removeChild(renderContainer);
-            pdf.save(`${document.getElementById('mlaAuthor')?.value || 'Paper'}.pdf`);
-
         } catch (err) {
             console.error(err);
             alert('Failed to generate PDF export.');
