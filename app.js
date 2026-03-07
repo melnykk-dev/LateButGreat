@@ -31,14 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── AI Helpers ───────────────────────────────────────────────
     async function fetchPollinationsJSON(prompt, systemMsg, retryCount = 0) {
-        const MAX_RETRIES = 3;
+        const MAX_RETRIES = 4;
+        const models = ['openai', 'mistral', 'hyperspace', 'searchgpt'];
+        const model = models[retryCount % models.length];
+
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000);
 
         try {
             const seed = Math.floor(Math.random() * 100000);
             const cleanPrompt = `${prompt} JSON Format: ${systemMsg}`;
-            const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=openai&json=true&seed=${seed}`;
+            const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=${model}&json=true&seed=${seed}`;
 
             const res = await fetch(url, {
                 method: 'GET',
@@ -47,15 +50,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             clearTimeout(timeout);
 
-            if (res.status === 429 && retryCount < MAX_RETRIES) {
+            // Retry on 429 (Rate Limit) or 5xx (Server Errors)
+            const recoverableErrors = [429, 500, 502, 503, 504];
+            if (recoverableErrors.includes(res.status) && retryCount < MAX_RETRIES) {
                 const backoff = Math.pow(2, retryCount) * 1500 + Math.random() * 1000;
-                showLoading(`Server busy, retrying in ${Math.round(backoff / 1000)}s...`);
+                const errorMsg = res.status === 429 ? 'Server busy' : `Server error (${res.status})`;
+                showLoading(`${errorMsg}, retrying with backup model (${models[(retryCount + 1) % models.length]})...`);
                 await new Promise(r => setTimeout(r, backoff));
                 return fetchPollinationsJSON(prompt, systemMsg, retryCount + 1);
             }
 
             if (!res.ok) {
-                throw new Error(`API returned ${res.status}`);
+                throw new Error(`API failed with status ${res.status} after ${retryCount} retries`);
             }
 
             const text = await res.text();
@@ -146,16 +152,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const cleanSub = (subTopic || '').replace(/[:;,\- —]/g, ' ').replace(/\s+/g, ' ').trim();
         const cleanTopic = (topic || '').replace(/[:;,\- —]/g, ' ').replace(/\s+/g, ' ').trim();
 
-        // Use up to 2 words from subTopic to keep query broad but thematic
-        const words = (cleanSub || cleanTopic).split(/\s+/).filter(w => w.length > 2);
-        const query = words.slice(0, 2).join(',') || 'abstract';
+        // Strategy: Simplified Hashtags (like Pexels/hashtags)
+        // We pick top 2 keywords + 1 random 'diversity' tag to force unique results
+        const keywords = (cleanSub || cleanTopic).split(/\s+/).filter(w => w.length > 3);
+        const tags = keywords.slice(0, 2);
 
-        // Unsplash Source (Featured) - very reliable for high-quality variety
-        // Coupling 'seed' with a query-hash to ensure truly unique images per slide
-        const queryHash = query.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
-        const finalSeed = Math.abs(queryHash) + Math.floor(seed) + Math.floor(Math.random() * 1000);
+        const diversityTags = ['minimal', 'vibrant', 'cinematic', 'professional', 'modern', 'detailed', 'bright', 'sleek', 'aerial', 'macro'];
+        const anchor = diversityTags[Math.floor(seed) % diversityTags.length];
+        tags.push(anchor);
 
-        return `https://source.unsplash.com/featured/1280x720/?${encodeURIComponent(query)}&sig=${finalSeed}`;
+        const query = tags.join(',');
+
+        // Multi-layered cache busting: lock, sig, and random timestamp
+        const lock = Math.floor(seed) + Math.floor(Math.random() * 1000);
+        const timestamp = Date.now();
+
+        // LoremFlickr with /all flag ensures it uses ALL tags for better relevance
+        return `https://loremflickr.com/all/1280/720/${encodeURIComponent(query)}?lock=${lock}&t=${timestamp}`;
     }
 
 
@@ -241,8 +254,22 @@ document.addEventListener('DOMContentLoaded', () => {
             planCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (e) {
             console.error(e);
-            hideLoading();
-            alert('Brainstorming failed. Please try again.');
+            // Fallback content if brainstorm totally fails
+            const count = Math.min(9, Math.max(5, selectedScale));
+            const fallbackTopics = [
+                "Core Concepts", "Current Challenges", "Market Analysis",
+                "Implementation Strategies", "Future Outlook", "Case Studies"
+            ].slice(0, count);
+
+            subTopicList.innerHTML = '';
+            fallbackTopics.forEach(sub => addTopicRow(sub));
+
+            showLoading('AI is busy, using template plan...');
+            setTimeout(() => {
+                hideLoading();
+                planCard.classList.remove('hidden');
+                planCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 1500);
         } finally { planBtn.disabled = false; }
     }
 
