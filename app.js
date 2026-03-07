@@ -20,111 +20,54 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedScale = 7;
     let deckState = { topic: '', slides: [] };
 
-    // ── AI Helpers with Better Fallback Logic ────────────────────
+    // ── AI Helpers ───────────────────────────────────────────────
     async function fetchPollinationsJSON(prompt, systemMsg) {
-        const models = ['openai', 'mistral', 'gpt-4'];
-        let lastError = null;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        
+        try {
+            const cleanPrompt = `${prompt} JSON Format: ${systemMsg}`;
+            const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=openai&json=true&seed=${Math.floor(Math.random() * 100000)}`;
 
-        for (const model of models) {
-            for (let attempt = 0; attempt < 3; attempt++) {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 30000);
-                
-                try {
-                    // Exponential backoff: wait longer on each retry
-                    if (attempt > 0) {
-                        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
-                    }
+            const res = await fetch(url, { 
+                method: 'GET', 
+                signal: controller.signal 
+            });
+            
+            clearTimeout(timeout);
 
-                    const cleanPrompt = `${prompt} JSON Format: ${systemMsg}`;
-                    const url = `https://text.pollinations.ai/${encodeURIComponent(cleanPrompt.substring(0, 500))}?model=${model}&json=true&seed=${Math.random() * 10000}`;
-
-                    const res = await fetch(url, { 
-                        method: 'GET', 
-                        signal: controller.signal,
-                        headers: { 'Cache-Control': 'no-cache' }
-                    });
-                    
-                    clearTimeout(timeout);
-
-                    if (res.status === 502 || res.status === 503) {
-                        lastError = `API overloaded (${res.status}), trying next model...`;
-                        console.warn(lastError);
-                        continue; // Try next model
-                    }
-
-                    if (res.status === 404) {
-                        lastError = `Model ${model} not found`;
-                        console.warn(lastError);
-                        break; // Skip to next model
-                    }
-
-                    if (!res.ok) {
-                        lastError = `Request failed: ${res.status}`;
-                        continue;
-                    }
-
-                    const text = await res.text();
-                    
-                    // Try to extract JSON
-                    const firstBrace = text.indexOf('{');
-                    const lastBrace = text.lastIndexOf('}');
-                    if (firstBrace !== -1 && lastBrace !== -1) {
-                        try { 
-                            return JSON.parse(text.substring(firstBrace, lastBrace + 1)); 
-                        } catch (e) {
-                            console.warn('JSON parse failed, trying array format');
-                        }
-                    }
-                    
-                    // Try array format
-                    const arrStart = text.indexOf('['), arrEnd = text.lastIndexOf(']');
-                    if (arrStart !== -1 && arrEnd !== -1) {
-                        try { 
-                            return { bulletPoints: JSON.parse(text.substring(arrStart, arrEnd + 1)) }; 
-                        } catch (_) { }
-                    }
-
-                } catch (e) {
-                    clearTimeout(timeout);
-                    lastError = e.message;
-                    console.warn(`Attempt ${attempt + 1} failed for ${model}:`, e.message);
-                }
+            if (!res.ok) {
+                throw new Error(`API returned ${res.status}`);
             }
+
+            const text = await res.text();
+            const firstBrace = text.indexOf('{');
+            const lastBrace = text.lastIndexOf('}');
+            
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                try { 
+                    return JSON.parse(text.substring(firstBrace, lastBrace + 1)); 
+                } catch (_) { }
+            }
+            
+            const arrStart = text.indexOf('['), arrEnd = text.lastIndexOf(']');
+            if (arrStart !== -1 && arrEnd !== -1) {
+                try { 
+                    return { bulletPoints: JSON.parse(text.substring(arrStart, arrEnd + 1)) }; 
+                } catch (_) { }
+            }
+            
+            throw new Error("Could not parse API response");
+        } catch (e) {
+            clearTimeout(timeout);
+            throw e;
         }
-
-        // All API attempts failed - use smart fallback
-        console.warn('All API calls failed, using fallback generation');
-        return generateFallbackContent(prompt, systemMsg);
-    }
-
-    // ── Smart Fallback Content Generator ─────────────────────────
-    function generateFallbackContent(prompt, systemMsg) {
-        // Try to extract the main topic/subject from the prompt
-        const titleMatch = prompt.match(/about "([^"]+)"/);
-        const title = titleMatch ? titleMatch[1] : 'Key Topic';
-
-        // Generate context-aware fallback bullet points
-        const fallbackBullets = [
-            `${title} is a fundamental concept that has shaped modern understanding and practice in this field.`,
-            `Contemporary applications of ${title} demonstrate significant improvements in efficiency and effectiveness across multiple sectors.`,
-            `Future developments in ${title} are expected to drive innovation and create new opportunities for growth and advancement.`
-        ];
-
-        return {
-            title: title,
-            bulletPoints: fallbackBullets
-        };
     }
 
     function getImageUrl(topic, subTopic, seed = 0) {
         const prompt = subTopic ? `${subTopic} presentation slide for ${topic}` : `${topic} presentation slide`;
         const clean = prompt.replace(/["']/g, '').trim();
-        
-        // Using multiple image sources as backup
-        const imageId = Math.abs(seed + Math.random() * 1000000) % 1000000;
-        
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent(clean + ' professional photography presentation')}?width=1280&height=720&nologo=true&seed=${imageId}`;
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(clean + ' highly detailed professional photography')}?width=1280&height=720&nologo=true&seed=${seed}`;
     }
 
 
@@ -226,14 +169,20 @@ document.addEventListener('DOMContentLoaded', () => {
             deckState.topic = topic;
             deckState.slides = [];
 
-            // Generate slides SEQUENTIALLY to avoid overwhelming the server
+            // Generate slides SEQUENTIALLY with delays to avoid rate limiting
             for (let i = 0; i < subTopics.length; i++) {
                 const subTopic = subTopics[i];
                 showLoading(`Generating slide ${i + 1} of ${subTopics.length}: ${subTopic}...`);
+                
+                // Add delay between requests to avoid rate limiting
+                if (i > 0) {
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+                
                 try {
                     const systemMsg = `JSON generator. Return ONLY: {"title": "exact slide title", "bulletPoints": ["Detailed point 1.", "Detailed point 2.", "Detailed point 3."]}`;
                     const aiResult = await fetchPollinationsJSON(
-                        `Write 3 detailed bullet points about "${subTopic}" in the context of "${topic}". Each point should be specific and informative.`,
+                        `Write 3 detailed bullet points about "${subTopic}" in the context of "${topic}".`,
                         systemMsg
                     );
 
@@ -254,16 +203,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         layout: ['layout-split-left', 'layout-split-right', 'layout-full-image', 'layout-top-image'][Math.floor(Math.random() * 4)]
                     });
                 } catch (e) {
-                    console.warn(`Slide ${i + 1} failed, using fallback:`, e);
+                    console.warn(`Slide ${i + 1} failed:`, e);
                     // Use fallback for this slide
                     deckState.slides.push({
-                        title: subTopics[i],
+                        title: subTopic,
                         bulletPoints: [
-                            `${subTopics[i]} is a critical component of this presentation.`,
-                            `Understanding ${subTopics[i]} provides valuable insights.`,
-                            `Continued focus on ${subTopics[i]} drives positive outcomes.`
+                            `${subTopic} is a fundamental aspect of this topic.`,
+                            `Understanding ${subTopic} provides valuable insights.`,
+                            `Focus on ${subTopic} continues to drive progress.`
                         ],
-                        imageUrl: getImageUrl(topic, subTopics[i], i),
+                        imageUrl: getImageUrl(topic, subTopic, i),
                         layout: ['layout-split-left', 'layout-split-right', 'layout-full-image', 'layout-top-image'][Math.floor(Math.random() * 4)]
                     });
                 }
@@ -271,9 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Chart slide
             showLoading('Generating data visualization...');
+            await new Promise(r => setTimeout(r, 2000)); // Delay before chart request
+            
             try {
                 const systemMsg = `JSON analyst. Return ONLY valid JSON: {"title": "string", "type": "bar", "labels": ["Label1","Label2","Label3","Label4","Label5"], "values": [number, number, number, number, number]}`;
-                const data = await fetchPollinationsJSON(`Generate 5 quantitative data points about "${topic}". Return coherent related values.`, systemMsg);
+                const data = await fetchPollinationsJSON(`Generate 5 quantitative data points about "${topic}".`, systemMsg);
 
                 const chartData = {
                     title: (typeof data.title === 'string' ? data.title : `${topic} Data`).substring(0, 80),
@@ -281,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     labels: Array.isArray(data.labels) ? data.labels.slice(0, 8).map(l => String(l)) : ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'],
                     values: Array.isArray(data.values) ? data.values.slice(0, 8).map(v => {
                         const n = Number(v);
-                        return isNaN(n) ? 0 : Math.min(100, Math.max(0, n)); // Clamp between 0-100
+                        return isNaN(n) ? 0 : n;
                     }) : [20, 35, 45, 60, 75]
                 };
 
@@ -293,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } catch (e) {
-                console.warn('Chart generation failed, using fallback');
+                console.warn('Chart generation failed:', e);
                 // Fallback chart
                 deckState.slides.push({
                     title: `${topic} Overview`,
@@ -315,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }));
 
-            // Render the full deck NOW (only after everything is ready)
+            // Render the full deck NOW
             renderDeck();
             previewSection.classList.remove('hidden');
             previewSection.scrollIntoView({ behavior: 'smooth' });
@@ -704,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ── UTILS ─────���─────────────────────────────────────────────
+    // ── UTILS ───────────────────────────────────────────────────
     function escHtml(str) {
         if (!str) return '';
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
